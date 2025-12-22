@@ -18,7 +18,6 @@ if os.name == 'nt':
 class StudyMaterialProcessor:
     def __init__(self):
         # --- CẤU HÌNH API KEY (DÁN TRỰC TIẾP) ---
-        # Key của bạn đã được dán sẵn vào đây
         api_key = "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" 
 
         try:
@@ -73,43 +72,46 @@ class StudyMaterialProcessor:
         if not self.client: return {"error": "Lỗi: Chưa có API Key"}
         
         try:
-            # --- CẬP NHẬT PROMPT: Yêu cầu viết dài, chi tiết, nhiều câu hỏi ---
+            # --- CẬP NHẬT PROMPT: QUÉT SẠCH NỘI DUNG (COVERAGE MODE) ---
             prompt = f"""
-            Bạn là một giảng viên đại học tâm huyết và chuyên sâu.
-            Nhiệm vụ: Phân tích tài liệu học tập sau đây để soạn giáo án ôn thi chi tiết.
+            Bạn là một chuyên gia giáo dục đang soạn ngân hàng câu hỏi thi.
+            Nhiệm vụ: Phân tích tài liệu sau để tạo bộ câu hỏi trắc nghiệm bao phủ toàn diện 100% nội dung.
             
-            Nội dung tài liệu: "{text[:8000]}" 
+            Nội dung tài liệu: "{text[:15000]}" 
             
             Yêu cầu bắt buộc về đầu ra (JSON):
-            1. "tom_tat": Viết một đoạn văn tóm tắt CHI TIẾT, đầy đủ các ý chính, độ dài khoảng 150-200 từ. KHÔNG được viết sơ sài.
-            2. "goi_y_hoc": Đưa ra 4-5 gợi ý hành động cụ thể để nắm vững kiến thức này.
-            3. "tu_khoa": Liệt kê ít nhất 8-10 từ khóa chuyên ngành quan trọng nhất trong bài.
-            4. "cau_hoi_quiz": Tạo ra ít nhất 5 câu hỏi ôn tập (kèm đáp án đúng).
+            1. "tom_tat": Tóm tắt nội dung tài liệu thành 3 phần (Mở bài, Thân bài chi tiết, Kết luận). Viết sâu và đầy đủ ý.
+            2. "goi_y_hoc": Đưa ra các phương pháp học tập cụ thể.
+            3. "tu_khoa": Liệt kê các từ khóa chuyên ngành quan trọng.
+            4. "cau_hoi_quiz": Tạo bộ câu hỏi trắc nghiệm.
+               - NGUYÊN TẮC VÀNG: KHÔNG GIỚI HẠN SỐ LƯỢNG CÂU HỎI.
+               - Số lượng câu hỏi phải phụ thuộc hoàn toàn vào độ dài và độ phức tạp của tài liệu.
+               - Tài liệu càng dài, càng nhiều kiến thức thì càng phải tạo nhiều câu hỏi. Có thể là 20, 30, 50 câu hoặc hơn.
+               - Mục tiêu: Đảm bảo học sinh làm xong bộ câu hỏi này là nắm chắc chắn 100% kiến thức trong bài, không bỏ sót bất kỳ ý nhỏ nào.
+               - Phân bổ: Câu hỏi phải rải đều từ dòng đầu tiên đến dòng cuối cùng.
             
-            Cấu trúc JSON mẫu (bắt buộc trả về đúng định dạng này):
+            Cấu trúc JSON mẫu (Trả về đúng định dạng này):
             {{
-                "tom_tat": "Nội dung tóm tắt chi tiết...",
-                "goi_y_hoc": ["Gợi ý 1", "Gợi ý 2", "Gợi ý 3", "Gợi ý 4"],
-                "tu_khoa": ["Từ khóa 1", "Từ khóa 2", "Từ khóa 3", "Từ khóa 4", "Từ khóa 5", "Từ khóa 6", "Từ khóa 7", "Từ khóa 8"],
+                "tom_tat": "Nội dung tóm tắt...",
+                "goi_y_hoc": ["Gợi ý 1", ...],
+                "tu_khoa": ["Từ 1", "Từ 2", ...],
                 "cau_hoi_quiz": [
                     {{"cau_hoi": "Câu hỏi 1?", "dap_an": "Đáp án 1"}},
                     {{"cau_hoi": "Câu hỏi 2?", "dap_an": "Đáp án 2"}},
-                    {{"cau_hoi": "Câu hỏi 3?", "dap_an": "Đáp án 3"}},
-                    {{"cau_hoi": "Câu hỏi 4?", "dap_an": "Đáp án 4"}},
-                    {{"cau_hoi": "Câu hỏi 5?", "dap_an": "Đáp án 5"}}
+                    ... (Tiếp tục tạo cho đến khi hết ý trong tài liệu)
                 ]
             }}
             """
 
-            # Gọi Groq API (Dùng model Llama 3.3 mới nhất - Siêu mạnh)
+            # Gọi Groq API (Model Llama 3.3)
             chat_completion = self.client.chat.completions.create(
                 messages=[
-                    {"role": "system", "content": "Bạn là trợ lý AI chuyên về giáo dục, luôn trả về định dạng JSON hợp lệ."},
+                    {"role": "system", "content": "Bạn là trợ lý AI JSON mode. Hãy tạo càng nhiều câu hỏi càng tốt để phủ kín nội dung."},
                     {"role": "user", "content": prompt}
                 ],
                 model="llama-3.3-70b-versatile", 
-                temperature=0.6, # Tăng nhẹ sáng tạo để viết dài hơn
-                max_tokens=2048, # Cho phép câu trả lời dài
+                temperature=0.5, # Giảm nhiệt độ để AI tập trung vào chi tiết chính xác
+                max_tokens=7000, # Mở rộng tối đa bộ nhớ để chứa được hàng chục câu hỏi
                 response_format={"type": "json_object"} 
             )
             
@@ -122,15 +124,15 @@ class StudyMaterialProcessor:
 # PHẦN 2: GIAO DIỆN WEB (GIỮ NGUYÊN)
 # ==========================================
 def main():
-    st.set_page_config(page_title="FlashQuest - Groq Edition", page_icon="⚡")
+    st.set_page_config(page_title="FlashQuest - Groq Edition", page_icon="⚡", layout="wide") 
 
     st.title("⚡ FlashQuest - Siêu tốc độ (Groq AI)")
-    st.write("Tải lên tài liệu của bạn (Word, PDF, Ảnh) để AI phân tích và tạo bài học.")
+    st.write("Tải lên tài liệu của bạn. AI sẽ tạo số lượng câu hỏi tương ứng để đảm bảo bạn học hết 100% kiến thức.")
 
     with st.sidebar:
-        st.header("Hướng dẫn")
-        st.info("1. Chọn file tài liệu.\n2. Bấm nút Phân tích.\n3. Nhận kết quả ngay lập tức.")
-        st.success("Đang chạy trên nền tảng Groq (Llama 3.3)")
+        st.header("Trạng thái")
+        st.success("Chế độ: Phủ kín nội dung (Comprehensive Coverage)")
+        st.info("AI sẽ tự động dò tìm từng ý trong bài để đặt câu hỏi. Tài liệu dài sẽ có rất nhiều câu hỏi.")
 
     uploaded_file = st.file_uploader("Chọn tài liệu", type=['docx', 'pdf', 'jpg', 'png', 'jpeg'])
 
@@ -141,11 +143,10 @@ def main():
         
         st.success(f"Đã tải lên: {uploaded_file.name}")
 
-        if st.button("✨ Phân tích ngay"):
+        if st.button("✨ Phân tích chi tiết"):
             processor = StudyMaterialProcessor()
             
-            # Đổi spinner cho ngầu hơn
-            with st.spinner("🚀 Đang kích hoạt động cơ Llama 3 siêu tốc..."):
+            with st.spinner("🚀 Đang quét toàn bộ tài liệu để tạo bộ câu hỏi đầy đủ nhất..."):
                 result = processor.process_file(file_path)
             
             if os.path.exists(file_path):
@@ -155,27 +156,34 @@ def main():
                 st.error(result["error"])
             else:
                 # --- Hiển thị kết quả ---
-                st.subheader("📝 Tóm tắt bài học")
+                st.subheader("📝 Tóm tắt chuyên sâu")
                 st.info(result.get("tom_tat", ""))
 
-                st.subheader("🔑 Từ khóa quan trọng")
+                st.subheader("🔑 Từ khóa cốt lõi")
                 keywords = result.get("tu_khoa", [])
                 
                 if keywords:
-                    cols = st.columns(3)
+                    cols = st.columns(4) # Chia 4 cột cho thoáng
                     for i, kw in enumerate(keywords):
-                        with cols[i % 3]:
+                        with cols[i % 4]:
                             st.button(f"🏷️ {kw}", key=f"kw_{i}", use_container_width=True)
 
-                st.subheader("💡 Gợi ý học tập")
+                st.subheader("💡 Chiến lược học tập")
                 for gy in result.get("goi_y_hoc", []):
                     st.markdown(f"- {gy}")
 
-                st.subheader("❓ Câu hỏi ôn tập")
-                for idx, q in enumerate(result.get("cau_hoi_quiz", []), 1):
-                    with st.expander(f"Câu hỏi {idx}: {q.get('cau_hoi')}"):
-                        st.markdown(f"**Đáp án:** {q.get('dap_an')}")
-                        st.balloons() 
+                # Hiển thị số lượng câu hỏi tìm được
+                quiz_list = result.get("cau_hoi_quiz", [])
+                st.divider()
+                st.subheader(f"❓ Ngân hàng câu hỏi ({len(quiz_list)} câu)")
+                st.caption("Số lượng câu hỏi được tạo dựa trên độ dài và chi tiết của tài liệu.")
+                
+                if not quiz_list:
+                    st.warning("Không tạo được câu hỏi nào.")
+                else:
+                    for idx, q in enumerate(quiz_list, 1):
+                        with st.expander(f"Câu {idx}: {q.get('cau_hoi')}"):
+                            st.markdown(f"**Đáp án:** {q.get('dap_an')}")
 
 if __name__ == "__main__":
     main()
