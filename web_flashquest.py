@@ -19,7 +19,7 @@ class StudyMaterialProcessor:
     def __init__(self):
         # Lấy API KEY từ Secrets
         try:
-            api_key = st.secrets["GROQ_API_KEY"]
+            api_key = st.secrets["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"]
             self.client = Groq(api_key=api_key)
         except Exception:
             # Key dự phòng hoặc báo lỗi (Bạn nên điền key vào Secrets nhé)
@@ -166,3 +166,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
