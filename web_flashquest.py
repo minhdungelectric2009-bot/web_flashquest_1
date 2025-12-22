@@ -5,7 +5,7 @@ import PyPDF2
 import pytesseract
 from PIL import Image
 import json
-from groq import Groq  # <-- Thay đổi: Dùng thư viện Groq
+from groq import Groq
 
 # --- CẤU HÌNH ---
 # 1. Cấu hình Tesseract (Cho Windows local)
@@ -17,15 +17,15 @@ if os.name == 'nt':
 # ==========================================
 class StudyMaterialProcessor:
     def __init__(self):
-            # --- CẤU HÌNH API KEY (DÁN TRỰC TIẾP) ---
-            # Tôi đã dán sẵn key của bạn vào đây rồi, không cần st.secrets nữa
-            api_key = "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" 
-    
-            try:
-                self.client = Groq(api_key=api_key)
-            except Exception as e:
-                st.error(f"Lỗi kết nối Groq: {e}")
-                self.client = None
+        # --- CẤU HÌNH API KEY (DÁN TRỰC TIẾP) ---
+        # Key của bạn đã được dán sẵn vào đây
+        api_key = "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" 
+
+        try:
+            self.client = Groq(api_key=api_key)
+        except Exception as e:
+            st.error(f"Lỗi kết nối Groq: {e}")
+            self.client = None
 
     def extract_text_from_docx(self, file_path):
         try:
@@ -69,54 +69,54 @@ class StudyMaterialProcessor:
 
         return self.analyze_with_ai(raw_text)
 
-     def analyze_with_ai(self, text):
-            if not self.client: return {"error": "Lỗi: Chưa có API Key"}
+    def analyze_with_ai(self, text):
+        if not self.client: return {"error": "Lỗi: Chưa có API Key"}
+        
+        try:
+            # --- CẬP NHẬT PROMPT: Yêu cầu viết dài, chi tiết, nhiều câu hỏi ---
+            prompt = f"""
+            Bạn là một giảng viên đại học tâm huyết và chuyên sâu.
+            Nhiệm vụ: Phân tích tài liệu học tập sau đây để soạn giáo án ôn thi chi tiết.
             
-            try:
-                # --- CẬP NHẬT PROMPT: Yêu cầu viết dài và chi tiết hơn ---
-                prompt = f"""
-                Bạn là một giảng viên đại học tâm huyết và chuyên sâu.
-                Nhiệm vụ: Phân tích tài liệu học tập sau đây để soạn giáo án ôn thi chi tiết.
-                
-                Nội dung tài liệu: "{text[:8000]}" 
-                
-                Yêu cầu bắt buộc về đầu ra (JSON):
-                1. "tom_tat": Viết một đoạn văn tóm tắt CHI TIẾT, đầy đủ các ý chính, độ dài khoảng 150-200 từ. KHÔNG được viết sơ sài.
-                2. "goi_y_hoc": Đưa ra 4-5 gợi ý hành động cụ thể để nắm vững kiến thức này.
-                3. "tu_khoa": Liệt kê ít nhất 8-10 từ khóa chuyên ngành quan trọng nhất trong bài.
-                4. "cau_hoi_quiz": Tạo ra ít nhất 5 câu hỏi ôn tập (kèm đáp án đúng).
-                
-                Cấu trúc JSON mẫu (bắt buộc trả về đúng định dạng này):
-                {{
-                    "tom_tat": "Nội dung tóm tắt chi tiết...",
-                    "goi_y_hoc": ["Gợi ý 1", "Gợi ý 2", "Gợi ý 3", "Gợi ý 4"],
-                    "tu_khoa": ["Từ khóa 1", "Từ khóa 2", "Từ khóa 3", "Từ khóa 4", "Từ khóa 5", "Từ khóa 6", "Từ khóa 7", "Từ khóa 8"],
-                    "cau_hoi_quiz": [
-                        {{"cau_hoi": "Câu hỏi 1?", "dap_an": "Đáp án 1"}},
-                        {{"cau_hoi": "Câu hỏi 2?", "dap_an": "Đáp án 2"}},
-                        {{"cau_hoi": "Câu hỏi 3?", "dap_an": "Đáp án 3"}},
-                        {{"cau_hoi": "Câu hỏi 4?", "dap_an": "Đáp án 4"}},
-                        {{"cau_hoi": "Câu hỏi 5?", "dap_an": "Đáp án 5"}}
-                    ]
-                }}
-                """
-    
-               # Gọi Groq API (Dùng model Llama 3.3 mới nhất)
-                chat_completion = self.client.chat.completions.create(
-                    messages=[
-                        {"role": "system", "content": "Bạn là trợ lý AI chuyên về giáo dục, luôn trả về định dạng JSON hợp lệ."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    model="llama-3.3-70b-versatile", 
-                    temperature=0.7, # Tăng độ sáng tạo lên một chút để viết dài hơn
-                    max_tokens=2000, # Cho phép câu trả lời dài hơn
-                    response_format={"type": "json_object"} 
-                )
+            Nội dung tài liệu: "{text[:8000]}" 
             
-                return json.loads(chat_completion.choices[0].message.content)
-    
-            except Exception as e:
-                return {"error": f"Lỗi AI: {str(e)}"}
+            Yêu cầu bắt buộc về đầu ra (JSON):
+            1. "tom_tat": Viết một đoạn văn tóm tắt CHI TIẾT, đầy đủ các ý chính, độ dài khoảng 150-200 từ. KHÔNG được viết sơ sài.
+            2. "goi_y_hoc": Đưa ra 4-5 gợi ý hành động cụ thể để nắm vững kiến thức này.
+            3. "tu_khoa": Liệt kê ít nhất 8-10 từ khóa chuyên ngành quan trọng nhất trong bài.
+            4. "cau_hoi_quiz": Tạo ra ít nhất 5 câu hỏi ôn tập (kèm đáp án đúng).
+            
+            Cấu trúc JSON mẫu (bắt buộc trả về đúng định dạng này):
+            {{
+                "tom_tat": "Nội dung tóm tắt chi tiết...",
+                "goi_y_hoc": ["Gợi ý 1", "Gợi ý 2", "Gợi ý 3", "Gợi ý 4"],
+                "tu_khoa": ["Từ khóa 1", "Từ khóa 2", "Từ khóa 3", "Từ khóa 4", "Từ khóa 5", "Từ khóa 6", "Từ khóa 7", "Từ khóa 8"],
+                "cau_hoi_quiz": [
+                    {{"cau_hoi": "Câu hỏi 1?", "dap_an": "Đáp án 1"}},
+                    {{"cau_hoi": "Câu hỏi 2?", "dap_an": "Đáp án 2"}},
+                    {{"cau_hoi": "Câu hỏi 3?", "dap_an": "Đáp án 3"}},
+                    {{"cau_hoi": "Câu hỏi 4?", "dap_an": "Đáp án 4"}},
+                    {{"cau_hoi": "Câu hỏi 5?", "dap_an": "Đáp án 5"}}
+                ]
+            }}
+            """
+
+            # Gọi Groq API (Dùng model Llama 3.3 mới nhất - Siêu mạnh)
+            chat_completion = self.client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": "Bạn là trợ lý AI chuyên về giáo dục, luôn trả về định dạng JSON hợp lệ."},
+                    {"role": "user", "content": prompt}
+                ],
+                model="llama-3.3-70b-versatile", 
+                temperature=0.6, # Tăng nhẹ sáng tạo để viết dài hơn
+                max_tokens=2048, # Cho phép câu trả lời dài
+                response_format={"type": "json_object"} 
+            )
+            
+            return json.loads(chat_completion.choices[0].message.content)
+
+        except Exception as e:
+            return {"error": f"Lỗi AI: {str(e)}"}
 
 # ==========================================
 # PHẦN 2: GIAO DIỆN WEB (GIỮ NGUYÊN)
@@ -130,7 +130,7 @@ def main():
     with st.sidebar:
         st.header("Hướng dẫn")
         st.info("1. Chọn file tài liệu.\n2. Bấm nút Phân tích.\n3. Nhận kết quả ngay lập tức.")
-        st.success("Đang chạy trên nền tảng Groq (Llama 3)")
+        st.success("Đang chạy trên nền tảng Groq (Llama 3.3)")
 
     uploaded_file = st.file_uploader("Chọn tài liệu", type=['docx', 'pdf', 'jpg', 'png', 'jpeg'])
 
@@ -154,7 +154,7 @@ def main():
             if "error" in result:
                 st.error(result["error"])
             else:
-                # --- Phần hiển thị này giữ nguyên như code cũ của bạn ---
+                # --- Hiển thị kết quả ---
                 st.subheader("📝 Tóm tắt bài học")
                 st.info(result.get("tom_tat", ""))
 
@@ -179,7 +179,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
