@@ -10,7 +10,10 @@ import json
 # --- CẤU HÌNH ---
 # 1. Cấu hình Tesseract (Lưu ý: Đường dẫn này chỉ chạy trên máy local của bạn)
 # Nếu đưa lên server thật thì cần cấu hình khác, nhưng chạy trên máy bạn thì giữ nguyên.
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+import shutil
+# Chỉ cấu hình đường dẫn nếu chạy trên Windows (máy cá nhân)
+if os.name == 'nt':
+    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 # 2. API KEY
 GOOGLE_API_KEY = "AIzaSyAZg8aSX11fbmzLy6KGekkWuv9aLzdkZYo"  # Key của bạn
@@ -161,4 +164,5 @@ def main():
                         st.balloons() # Hiệu ứng vui vẻ khi mở đáp án
 
 if __name__ == "__main__":
+
     main()
