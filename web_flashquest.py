@@ -119,7 +119,7 @@ def main():
             if 'generateContent' in m.supported_generation_methods:
                 st.code(m.name)
     except Exception as e:
-    st.error(f"Lỗi khi lấy danh sách: {e}")
+        st.error(f"Lỗi khi lấy danh sách: {e}")
 # -------------------------------------------
     st.write("Tải lên tài liệu của bạn (Word, PDF, Ảnh) để AI phân tích và tạo bài học.")
 
@@ -187,6 +187,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
