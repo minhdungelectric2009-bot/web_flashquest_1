@@ -33,7 +33,7 @@ class StudyMaterialProcessor:
             st.error("⚠️ CẢNH BÁO: Bạn chưa điền API Key thật!")
         else:
             genai.configure(api_key=GOOGLE_API_KEY)
-            self.model = genai.GenerativeModel('gemini-flash-latest') 
+            self.model = genai.GenerativeModel('gemini-pro') 
 
     def extract_text_from_docx(self, file_path):
         try:
@@ -178,6 +178,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
