@@ -152,10 +152,16 @@ def main():
 
                 # 2. Từ khóa (Dùng columns để hiển thị ngang)
                 st.subheader("🔑 Từ khóa quan trọng")
-                cols = st.columns(len(result.get("tu_khoa", [])))
-                for idx, kw in enumerate(result.get("tu_khoa", [])):
-                    if idx < len(cols):
-                        cols[idx].button(kw, key=f"kw_{idx}") # Tạo dạng nút cho đẹp
+                keywords = result.get("tu_khoa", [])
+                
+                if keywords:
+                    # Tạo 3 cột cố định để từ khóa luôn có đủ chỗ hiển thị
+                    cols = st.columns(3)
+                    for i, kw in enumerate(keywords):
+                        # Logic chia đều: Từ thứ 1 vào cột 1, từ thứ 2 vào cột 2...
+                        with cols[i % 3]:
+                           # use_container_width=True giúp nút tự co giãn cho đẹp
+                            st.button(f"🏷️ {kw}", key=f"kw_{i}", use_container_width=True)
 
                 # 3. Gợi ý học
                 st.subheader("💡 Gợi ý học tập")
@@ -172,4 +178,5 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
