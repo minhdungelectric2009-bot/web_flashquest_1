@@ -15,8 +15,14 @@ import shutil
 if os.name == 'nt':
     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-# 2. API KEY
-GOOGLE_API_KEY = "AIzaSyAZg8aSX11fbmzLy6KGekkWuv9aLzdkZYo"  # Key của bạn
+# 2. API KEY (Lấy từ Secrets của Streamlit)
+try:
+    # Thử lấy từ Secrets (khi chạy trên Web)
+    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
+except FileNotFoundError:
+    # Nếu chạy trên máy cá nhân không có Secrets thì dùng key dự phòng (hoặc để trống)
+    # Khuyên bạn nên tạo file .streamlit/secrets.toml trên máy local nếu muốn chạy thử
+    GOOGLE_API_KEY = "AIzaSyAZg8aSX11fbmzLy6KGekkWuv9aLzdkZYo"
 
 # ==========================================
 # PHẦN 1: LOGIC XỬ LÝ (GIỮ NGUYÊN)
@@ -166,3 +172,4 @@ def main():
 if __name__ == "__main__":
 
     main()
+
