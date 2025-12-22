@@ -17,14 +17,15 @@ if os.name == 'nt':
 # ==========================================
 class StudyMaterialProcessor:
     def __init__(self):
-        # Lấy API KEY từ Secrets
-        try:
-            api_key = st.secrets["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"]
-            self.client = Groq(api_key=api_key)
-        except Exception:
-            # Key dự phòng hoặc báo lỗi (Bạn nên điền key vào Secrets nhé)
-            st.error("⚠️ Chưa cấu hình GROQ_API_KEY trong Secrets!")
-            self.client = None
+            # --- CẤU HÌNH API KEY (DÁN TRỰC TIẾP) ---
+            # Tôi đã dán sẵn key của bạn vào đây rồi, không cần st.secrets nữa
+            api_key = "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" 
+    
+            try:
+                self.client = Groq(api_key=api_key)
+            except Exception as e:
+                st.error(f"Lỗi kết nối Groq: {e}")
+                self.client = None
 
     def extract_text_from_docx(self, file_path):
         try:
@@ -166,4 +167,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
