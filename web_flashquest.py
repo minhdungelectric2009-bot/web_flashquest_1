@@ -96,7 +96,7 @@ class StudyMaterialProcessor:
                     {"role": "system", "content": "Bạn là chuyên gia xuất dữ liệu JSON."},
                     {"role": "user", "content": prompt}
                 ],
-                model="llama3-8b-8192", 
+                model="llama-3.3-70b-versatile", 
                 temperature=0.5,
                 response_format={"type": "json_object"} # Chế độ JSON chuẩn
             )
@@ -167,5 +167,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
