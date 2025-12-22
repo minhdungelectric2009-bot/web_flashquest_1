@@ -112,6 +112,15 @@ def main():
 
     # Header
     st.title("🚀 FlashQuest AI - Trợ lý học tập")
+    # --- CODE KIỂM TRA MODEL (Dùng để debug) ---
+    try:
+        st.write("🔍 Đang kiểm tra danh sách Model khả dụng...")
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                st.code(m.name)
+    except Exception as e:
+    st.error(f"Lỗi khi lấy danh sách: {e}")
+# -------------------------------------------
     st.write("Tải lên tài liệu của bạn (Word, PDF, Ảnh) để AI phân tích và tạo bài học.")
 
     # Sidebar (Thanh bên trái)
@@ -178,6 +187,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
