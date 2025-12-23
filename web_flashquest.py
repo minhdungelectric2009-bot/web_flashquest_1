@@ -16,10 +16,9 @@ if os.name == 'nt':
 # ==========================================
 class StudyMaterialProcessor:
     def __init__(self, selected_model_id):
-        # --- API KEY ---
+        # --- API KEY (DÁN TRỰC TIẾP) ---
         api_key = "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" 
         
-        # Lưu model ID được chọn từ giao diện
         self.model_id = selected_model_id
 
         try:
@@ -68,18 +67,19 @@ class StudyMaterialProcessor:
         if not self.client: return {"error_type": "CONFIG", "message": "Lỗi: Chưa có API Key"}
         
         try:
-            # Prompt "Phủ kín nội dung"
+            # Prompt: Quét sạch 100% nội dung
             prompt = f"""
             Bạn là chuyên gia giáo dục. Nhiệm vụ: Tạo bộ câu hỏi trắc nghiệm phủ kín 100% nội dung tài liệu.
-            Nội dung: "{text[:18000]}" 
+            Nội dung: "{text[:20000]}" 
             
             Yêu cầu JSON đầu ra:
-            1. "tom_tat": Tóm tắt 3 phần (Mở, Thân, Kết) thật chi tiết.
-            2. "goi_y_hoc": 5 phương pháp học.
-            3. "tu_khoa": 10-15 từ khóa.
-            4. "cau_hoi_quiz": Tạo số lượng câu hỏi KHÔNG GIỚI HẠN, tùy thuộc vào độ dài tài liệu.
-               - Tài liệu dài phải có nhiều câu hỏi (20-50 câu) để rải đều kiến thức.
-               - Đảm bảo học xong quiz là thuộc hết bài.
+            1. "tom_tat": Tóm tắt 3 phần (Mở, Thân, Kết) thật chi tiết, sâu sắc.
+            2. "goi_y_hoc": 5 phương pháp học tập cụ thể.
+            3. "tu_khoa": 10-15 từ khóa chuyên ngành.
+            4. "cau_hoi_quiz": Tạo bộ câu hỏi KHÔNG GIỚI HẠN SỐ LƯỢNG.
+               - Nguyên tắc: Tài liệu có bao nhiêu ý thì có bấy nhiêu câu hỏi.
+               - Tài liệu dài phải có nhiều câu (20, 30, 50 câu...).
+               - Phải rải đều câu hỏi từ đầu đến cuối văn bản.
             
             Trả về JSON đúng mẫu:
             {{
@@ -90,31 +90,30 @@ class StudyMaterialProcessor:
             }}
             """
 
-            # Gọi Groq API với Model được chọn
             chat_completion = self.client.chat.completions.create(
                 messages=[
                     {"role": "system", "content": "Bạn là trợ lý JSON. Chỉ trả về JSON hợp lệ."},
                     {"role": "user", "content": prompt}
                 ],
-                model=self.model_id, # <-- Dùng model người dùng chọn
+                model=self.model_id, 
                 temperature=0.5,
-                max_tokens=7000, 
+                max_tokens=7500, # Bộ nhớ cực lớn để chứa nhiều câu hỏi
                 response_format={"type": "json_object"} 
             )
             
             return json.loads(chat_completion.choices[0].message.content)
 
-        # --- BẮT LỖI RATE LIMIT & QUOTA ---
+        # --- XỬ LÝ LỖI HẾT LIMIT (QUAN TRỌNG) ---
         except RateLimitError:
             return {
                 "error_type": "RATE_LIMIT", 
-                "message": f"🚨 Model {self.model_id} đã HẾT LƯỢT hoặc QUÁ TẢI!\n👉 Vui lòng chọn Model khác ở thanh bên trái."
+                "message": f"⛔ MODEL {self.model_id} ĐÃ HẾT LƯỢT TRONG NGÀY!\n\n👉 Vui lòng nhìn sang thanh bên trái và chọn Model khác (ví dụ: Llama 3.1) để tiếp tục."
             }
         except APIError as e:
             if "429" in str(e) or "rate limit" in str(e).lower():
                 return {
                     "error_type": "RATE_LIMIT", 
-                    "message": f"🚨 Model {self.model_id} đang bận hoặc hết lượt!\n👉 Hãy đổi sang Model khác (ví dụ Llama 3.1)."
+                    "message": f"⛔ MODEL {self.model_id} ĐANG QUÁ TẢI!\n\n👉 Hãy đổi sang Model khác ngay lập tức."
                 }
             return {"error_type": "API", "message": f"Lỗi API: {str(e)}"}
         except Exception as e:
@@ -124,34 +123,37 @@ class StudyMaterialProcessor:
 # PHẦN 2: GIAO DIỆN WEB
 # ==========================================
 def main():
-    st.set_page_config(page_title="FlashQuest - AI Selector", page_icon="⚡", layout="wide")
+    st.set_page_config(page_title="FlashQuest - Smart Select", page_icon="⚡", layout="wide")
 
-    st.title("⚡ FlashQuest - Học tập siêu tốc")
+    st.title("⚡ FlashQuest - Học tập thông minh")
 
-    # --- THANH BÊN: CHỌN MODEL ---
+    # --- THANH BÊN: CHỌN MODEL (Đã lọc) ---
     with st.sidebar:
-        st.header("🧠 Cấu hình bộ não AI")
+        st.header("🧠 Chọn Bộ Não AI")
         
-        # Danh sách Model tối ưu nhất từ ảnh bạn gửi
+        # Chỉ giữ lại 2 model hoạt động tốt nhất
         model_options = {
             "🏆 Llama 3.3 (Thông minh nhất - 70B)": "llama-3.3-70b-versatile",
-            "🚀 Llama 3.1 (Siêu tốc/Nhiều lượt - 8B)": "llama-3.1-8b-instant",
-            "🤖 Qwen 2.5/3 (Logic tốt - 32B)": "qwen-2.5-32b", # Hoặc qwen/qwen3-32b nếu có
+            "🚀 Llama 3.1 (Siêu tốc/Không giới hạn - 8B)": "llama-3.1-8b-instant"
         }
         
         selected_name = st.selectbox(
-            "Chọn mô hình phân tích:",
+            "Mô hình xử lý:",
             options=list(model_options.keys()),
             index=0 # Mặc định chọn cái xịn nhất
         )
         
-        # Lấy ID thực tế để gửi cho API
         selected_model_id = model_options[selected_name]
         
-        st.info(f"Đang dùng: **{selected_model_id}**")
-        st.caption("Mẹo: Nếu gặp lỗi hết lượt, hãy đổi sang dòng 'Siêu tốc' (Llama 3.1).")
+        # Hiển thị trạng thái Model
+        if "70b" in selected_model_id:
+            st.info("✅ **Đang dùng:** Model chất lượng cao.\n⚠️ **Lưu ý:** Giới hạn khoảng 1000 lượt/ngày.")
+        else:
+            st.success("✅ **Đang dùng:** Model siêu tốc.\n🛡️ **Ưu điểm:** Hầu như không bao giờ hết lượt.")
+            
         st.divider()
-        st.write("Hướng dẫn:\n1. Tải tài liệu.\n2. Bấm Phân tích.\n3. Đổi model nếu cần.")
+        st.write("**Hướng dẫn đổi AI:**")
+        st.caption("Nếu thấy báo lỗi màu đỏ 'Hết lượt', hãy đổi ngay sang dòng Llama 3.1 ở trên.")
 
     # --- PHẦN CHÍNH ---
     uploaded_file = st.file_uploader("Tải lên tài liệu (Word, PDF, Ảnh)", type=['docx', 'pdf', 'jpg', 'png', 'jpeg'])
@@ -164,22 +166,23 @@ def main():
         st.success(f"Đã nhận file: {uploaded_file.name}")
 
         if st.button("✨ Phân tích ngay"):
-            # Truyền model ID vào bộ xử lý
             processor = StudyMaterialProcessor(selected_model_id)
             
-            with st.spinner(f"AI ({selected_model_id}) đang đọc và soạn câu hỏi..."):
+            with st.spinner(f"AI ({selected_name}) đang quét toàn bộ kiến thức..."):
                 result = processor.process_file(file_path)
             
             if os.path.exists(file_path): os.remove(file_path)
 
-            # --- XỬ LÝ LỖI ---
+            # --- HIỂN THỊ LỖI NẾU CÓ ---
             if "error_type" in result:
                 err_type = result["error_type"]
                 msg = result["message"]
                 
                 if err_type == "RATE_LIMIT":
-                    st.error(msg, icon="🚫") # Hiện lỗi đỏ thật to
-                    st.toast("Hãy đổi Model bên thanh trái!", icon="👈")
+                    # Hiện thông báo lỗi cực lớn để học sinh chú ý đổi model
+                    st.error(msg, icon="🚫")
+                    with st.sidebar:
+                        st.error("🚨 HẾT LIMIT! Đổi Model ngay tại đây ⬆️")
                 else:
                     st.error(msg)
             
@@ -202,7 +205,11 @@ def main():
 
                 st.divider()
                 quiz_list = result.get("cau_hoi_quiz", [])
+                
+                # Hiển thị tiêu đề ngân hàng câu hỏi
                 st.subheader(f"❓ Ngân hàng câu hỏi ({len(quiz_list)} câu)")
+                if len(quiz_list) > 20:
+                    st.caption("🔥 Tài liệu rất chi tiết! AI đã tạo ra số lượng lớn câu hỏi để bao phủ toàn bộ kiến thức.")
                 
                 if not quiz_list:
                     st.warning("Không tạo được câu hỏi nào.")
