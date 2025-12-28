@@ -17,7 +17,7 @@ if os.name == 'nt':
 class StudyMaterialProcessor:
     def __init__(self, selected_model_id):
         # --- API KEY (DÁN TRỰC TIẾP) ---
-        api_key = "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" 
+        api_key = "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" 
         
         self.model_id = selected_model_id
 
@@ -220,3 +220,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
