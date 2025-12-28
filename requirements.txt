@@ -2,5 +2,4 @@ streamlit
 groq
 python-docx
 PyPDF2
-pytesseract
 Pillow
