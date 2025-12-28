@@ -16,15 +16,25 @@ if os.name == 'nt':
 # ==========================================
 class StudyMaterialProcessor:
     def __init__(self, selected_model_id):
-        # --- API KEY (DÁN TRỰC TIẾP) ---
-        api_key = "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" 
+        # ---------------------------------------------------------
+        # 👇 CODE MỚI: TỰ ĐỘNG LẤY KEY TỪ SECRETS (AN TOÀN TUYỆT ĐỐI) 👇
+        try:
+            api_key = st.secrets["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"]
+        except Exception:
+            # Nếu chạy trên máy cá nhân không có Secrets thì báo lỗi
+            st.error("⚠️ Chưa cấu hình GROQ_API_KEY trong Streamlit Secrets!")
+            api_key = None
+        # ---------------------------------------------------------
         
         self.model_id = selected_model_id
 
-        try:
-            self.client = Groq(api_key=api_key)
-        except Exception as e:
-            st.error(f"Lỗi kết nối Groq: {e}")
+        if api_key:
+            try:
+                self.client = Groq(api_key=api_key)
+            except Exception as e:
+                st.error(f"Lỗi kết nối Groq: {e}")
+                self.client = None
+        else:
             self.client = None
 
     def extract_text_from_docx(self, file_path):
@@ -64,7 +74,7 @@ class StudyMaterialProcessor:
         return self.analyze_with_ai(raw_text)
 
     def analyze_with_ai(self, text):
-        if not self.client: return {"error_type": "CONFIG", "message": "Lỗi: Chưa có API Key"}
+        if not self.client: return {"error_type": "CONFIG", "message": "Lỗi: Chưa cấu hình API Key trong Secrets."}
         
         try:
             # Prompt: Quét sạch 100% nội dung
@@ -97,13 +107,13 @@ class StudyMaterialProcessor:
                 ],
                 model=self.model_id, 
                 temperature=0.5,
-                max_tokens=7500, # Bộ nhớ cực lớn để chứa nhiều câu hỏi
+                max_tokens=7500, # Bộ nhớ cực lớn
                 response_format={"type": "json_object"} 
             )
             
             return json.loads(chat_completion.choices[0].message.content)
 
-        # --- XỬ LÝ LỖI HẾT LIMIT (QUAN TRỌNG) ---
+        # --- XỬ LÝ LỖI ---
         except RateLimitError:
             return {
                 "error_type": "RATE_LIMIT", 
@@ -114,6 +124,11 @@ class StudyMaterialProcessor:
                 return {
                     "error_type": "RATE_LIMIT", 
                     "message": f"⛔ MODEL {self.model_id} ĐANG QUÁ TẢI!\n\n👉 Hãy đổi sang Model khác ngay lập tức."
+                }
+            if "401" in str(e):
+                return {
+                    "error_type": "CONFIG", 
+                    "message": "🔑 Lỗi API Key: Vui lòng kiểm tra lại Key trong Streamlit Secrets."
                 }
             return {"error_type": "API", "message": f"Lỗi API: {str(e)}"}
         except Exception as e:
@@ -127,11 +142,10 @@ def main():
 
     st.title("⚡ FlashQuest - Học tập thông minh")
 
-    # --- THANH BÊN: CHỌN MODEL (Đã lọc) ---
+    # --- THANH BÊN: CHỌN MODEL ---
     with st.sidebar:
         st.header("🧠 Chọn Bộ Não AI")
         
-        # Chỉ giữ lại 2 model hoạt động tốt nhất
         model_options = {
             "🏆 Llama 3.3 (Thông minh nhất - 70B)": "llama-3.3-70b-versatile",
             "🚀 Llama 3.1 (Siêu tốc/Không giới hạn - 8B)": "llama-3.1-8b-instant"
@@ -140,12 +154,11 @@ def main():
         selected_name = st.selectbox(
             "Mô hình xử lý:",
             options=list(model_options.keys()),
-            index=0 # Mặc định chọn cái xịn nhất
+            index=0 
         )
         
         selected_model_id = model_options[selected_name]
         
-        # Hiển thị trạng thái Model
         if "70b" in selected_model_id:
             st.info("✅ **Đang dùng:** Model chất lượng cao.\n⚠️ **Lưu ý:** Giới hạn khoảng 1000 lượt/ngày.")
         else:
@@ -173,20 +186,17 @@ def main():
             
             if os.path.exists(file_path): os.remove(file_path)
 
-            # --- HIỂN THỊ LỖI NẾU CÓ ---
             if "error_type" in result:
                 err_type = result["error_type"]
                 msg = result["message"]
                 
                 if err_type == "RATE_LIMIT":
-                    # Hiện thông báo lỗi cực lớn để học sinh chú ý đổi model
                     st.error(msg, icon="🚫")
                     with st.sidebar:
                         st.error("🚨 HẾT LIMIT! Đổi Model ngay tại đây ⬆️")
                 else:
                     st.error(msg)
             
-            # --- HIỂN THỊ KẾT QUẢ ---
             else:
                 col1, col2 = st.columns([2, 1])
                 
@@ -206,10 +216,9 @@ def main():
                 st.divider()
                 quiz_list = result.get("cau_hoi_quiz", [])
                 
-                # Hiển thị tiêu đề ngân hàng câu hỏi
                 st.subheader(f"❓ Ngân hàng câu hỏi ({len(quiz_list)} câu)")
                 if len(quiz_list) > 20:
-                    st.caption("🔥 Tài liệu rất chi tiết! AI đã tạo ra số lượng lớn câu hỏi để bao phủ toàn bộ kiến thức.")
+                    st.caption("🔥 AI đã tạo ra số lượng lớn câu hỏi để bao phủ toàn bộ kiến thức.")
                 
                 if not quiz_list:
                     st.warning("Không tạo được câu hỏi nào.")
@@ -220,5 +229,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
