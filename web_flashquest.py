@@ -19,7 +19,7 @@ class StudyMaterialProcessor:
         # ---------------------------------------------------------
         # 👇 CODE MỚI: TỰ ĐỘNG LẤY KEY TỪ SECRETS (AN TOÀN TUYỆT ĐỐI) 👇
         try:
-            api_key = st.secrets["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"]
+            api_key = st.secrets["GROQ_API_KEY"]
         except Exception:
             # Nếu chạy trên máy cá nhân không có Secrets thì báo lỗi
             st.error("⚠️ Chưa cấu hình GROQ_API_KEY trong Streamlit Secrets!")
@@ -229,4 +229,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
