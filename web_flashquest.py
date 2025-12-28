@@ -2,29 +2,23 @@ import streamlit as st
 import os
 import docx
 import PyPDF2
-import pytesseract
+# import pytesseract  <-- ĐÃ XÓA (Không cần nữa)
+import base64  # <-- MỚI: Dùng để mã hóa ảnh gửi cho AI
 from PIL import Image
 import json
 from groq import Groq, RateLimitError, APIError
-
-# --- CẤU HÌNH ---
-if os.name == 'nt':
-    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 # ==========================================
 # PHẦN 1: LOGIC XỬ LÝ (BACKEND)
 # ==========================================
 class StudyMaterialProcessor:
     def __init__(self, selected_model_id):
-        # ---------------------------------------------------------
-        # 👇 CODE MỚI: TỰ ĐỘNG LẤY KEY TỪ SECRETS (AN TOÀN TUYỆT ĐỐI) 👇
+        # Lấy API Key
         try:
             api_key = st.secrets["GROQ_API_KEY"]
         except Exception:
-            # Nếu chạy trên máy cá nhân không có Secrets thì báo lỗi
             st.error("⚠️ Chưa cấu hình GROQ_API_KEY trong Streamlit Secrets!")
             api_key = None
-        # ---------------------------------------------------------
         
         self.model_id = selected_model_id
 
@@ -53,11 +47,38 @@ class StudyMaterialProcessor:
             return text
         except: return ""
 
+    # 👇 CODE MỚI: Dùng AI Vision thay cho Tesseract 👇
     def extract_text_from_image(self, file_path):
+        if not self.client: return ""
         try:
-            img = Image.open(file_path)
-            return pytesseract.image_to_string(img, lang='vie+eng')
-        except: return ""
+            # 1. Mã hóa ảnh thành Base64 để gửi qua mạng
+            with open(file_path, "rb") as image_file:
+                base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+
+            # 2. Gọi model Llama Vision (chuyên đọc ảnh)
+            # Lưu ý: Luôn dùng model Vision cho bước này, bất kể người dùng chọn model nào ở ngoài
+            vision_model = "llama-3.2-11b-vision-preview" 
+
+            chat_completion = self.client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "Hãy trích xuất toàn bộ văn bản có trong hình ảnh này. Chỉ trả về nội dung văn bản, không thêm lời bình luận hay mô tả."},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}",
+                                },
+                            },
+                        ],
+                    }
+                ],
+                model=vision_model,
+            )
+            return chat_completion.choices[0].message.content
+        except Exception as e:
+            return f"Lỗi đọc ảnh bằng AI: {str(e)}"
 
     def process_file(self, file_path):
         _, ext = os.path.splitext(file_path)
@@ -68,28 +89,25 @@ class StudyMaterialProcessor:
         elif ext == '.pdf': raw_text = self.extract_text_from_pdf(file_path)
         elif ext in ['.jpg', '.jpeg', '.png']: raw_text = self.extract_text_from_image(file_path)
         
-        if not raw_text.strip():
+        if not raw_text or not raw_text.strip():
             return {"error_type": "DATA", "message": "Không đọc được nội dung text từ file này."}
 
+        # Sau khi có text, mới dùng model người dùng chọn để phân tích
         return self.analyze_with_ai(raw_text)
 
     def analyze_with_ai(self, text):
-        if not self.client: return {"error_type": "CONFIG", "message": "Lỗi: Chưa cấu hình API Key trong Secrets."}
+        if not self.client: return {"error_type": "CONFIG", "message": "Lỗi: Chưa cấu hình API Key."}
         
         try:
-            # Prompt: Quét sạch 100% nội dung
             prompt = f"""
             Bạn là chuyên gia giáo dục. Nhiệm vụ: Tạo bộ câu hỏi trắc nghiệm phủ kín 100% nội dung tài liệu.
             Nội dung: "{text[:20000]}" 
             
             Yêu cầu JSON đầu ra:
-            1. "tom_tat": Tóm tắt 3 phần (Mở, Thân, Kết) thật chi tiết, sâu sắc.
-            2. "goi_y_hoc": 5 phương pháp học tập cụ thể.
-            3. "tu_khoa": 10-15 từ khóa chuyên ngành.
-            4. "cau_hoi_quiz": Tạo bộ câu hỏi KHÔNG GIỚI HẠN SỐ LƯỢNG.
-               - Nguyên tắc: Tài liệu có bao nhiêu ý thì có bấy nhiêu câu hỏi.
-               - Tài liệu dài phải có nhiều câu (20, 30, 50 câu...).
-               - Phải rải đều câu hỏi từ đầu đến cuối văn bản.
+            1. "tom_tat": Tóm tắt 3 phần (Mở, Thân, Kết).
+            2. "goi_y_hoc": 5 phương pháp học tập.
+            3. "tu_khoa": 10-15 từ khóa.
+            4. "cau_hoi_quiz": Tạo bộ câu hỏi (Không giới hạn, càng nhiều càng tốt).
             
             Trả về JSON đúng mẫu:
             {{
@@ -107,69 +125,38 @@ class StudyMaterialProcessor:
                 ],
                 model=self.model_id, 
                 temperature=0.5,
-                max_tokens=7500, # Bộ nhớ cực lớn
+                max_tokens=7500,
                 response_format={"type": "json_object"} 
             )
             
             return json.loads(chat_completion.choices[0].message.content)
 
-        # --- XỬ LÝ LỖI ---
         except RateLimitError:
-            return {
-                "error_type": "RATE_LIMIT", 
-                "message": f"⛔ MODEL {self.model_id} ĐÃ HẾT LƯỢT TRONG NGÀY!\n\n👉 Vui lòng nhìn sang thanh bên trái và chọn Model khác (ví dụ: Llama 3.1) để tiếp tục."
-            }
+            return {"error_type": "RATE_LIMIT", "message": f"⛔ Model {self.model_id} hết lượt."}
         except APIError as e:
-            if "429" in str(e) or "rate limit" in str(e).lower():
-                return {
-                    "error_type": "RATE_LIMIT", 
-                    "message": f"⛔ MODEL {self.model_id} ĐANG QUÁ TẢI!\n\n👉 Hãy đổi sang Model khác ngay lập tức."
-                }
-            if "401" in str(e):
-                return {
-                    "error_type": "CONFIG", 
-                    "message": "🔑 Lỗi API Key: Vui lòng kiểm tra lại Key trong Streamlit Secrets."
-                }
             return {"error_type": "API", "message": f"Lỗi API: {str(e)}"}
         except Exception as e:
-            return {"error_type": "UNKNOWN", "message": f"Lỗi không xác định: {str(e)}"}
+            return {"error_type": "UNKNOWN", "message": f"Lỗi: {str(e)}"}
 
 # ==========================================
 # PHẦN 2: GIAO DIỆN WEB
 # ==========================================
 def main():
     st.set_page_config(page_title="FlashQuest - Smart Select", page_icon="⚡", layout="wide")
-
     st.title("⚡ FlashQuest - Học tập thông minh")
 
-    # --- THANH BÊN: CHỌN MODEL ---
     with st.sidebar:
         st.header("🧠 Chọn Bộ Não AI")
-        
         model_options = {
             "🏆 Llama 3.3 (Thông minh nhất - 70B)": "llama-3.3-70b-versatile",
-            "🚀 Llama 3.1 (Siêu tốc/Không giới hạn - 8B)": "llama-3.1-8b-instant"
+            "🚀 Llama 3.1 (Siêu tốc - 8B)": "llama-3.1-8b-instant"
         }
-        
-        selected_name = st.selectbox(
-            "Mô hình xử lý:",
-            options=list(model_options.keys()),
-            index=0 
-        )
-        
+        selected_name = st.selectbox("Mô hình xử lý:", options=list(model_options.keys()), index=0)
         selected_model_id = model_options[selected_name]
         
-        if "70b" in selected_model_id:
-            st.info("✅ **Đang dùng:** Model chất lượng cao.\n⚠️ **Lưu ý:** Giới hạn khoảng 1000 lượt/ngày.")
-        else:
-            st.success("✅ **Đang dùng:** Model siêu tốc.\n🛡️ **Ưu điểm:** Hầu như không bao giờ hết lượt.")
-            
-        st.divider()
-        st.write("**Hướng dẫn đổi AI:**")
-        st.caption("Nếu thấy báo lỗi màu đỏ 'Hết lượt', hãy đổi ngay sang dòng Llama 3.1 ở trên.")
+        st.info("📷 **Tính năng ảnh:** Tự động dùng Llama 3.2 Vision để đọc ảnh (Không cần cài phần mềm).")
 
-    # --- PHẦN CHÍNH ---
-    uploaded_file = st.file_uploader("Tải lên tài liệu (Word, PDF, Ảnh)", type=['docx', 'pdf', 'jpg', 'png', 'jpeg'])
+    uploaded_file = st.file_uploader("Tải lên tài liệu", type=['docx', 'pdf', 'jpg', 'png', 'jpeg'])
 
     if uploaded_file is not None:
         file_path = uploaded_file.name
@@ -181,53 +168,29 @@ def main():
         if st.button("✨ Phân tích ngay"):
             processor = StudyMaterialProcessor(selected_model_id)
             
-            with st.spinner(f"AI ({selected_name}) đang quét toàn bộ kiến thức..."):
+            with st.spinner(f"AI đang đọc tài liệu và phân tích..."):
                 result = processor.process_file(file_path)
             
             if os.path.exists(file_path): os.remove(file_path)
 
             if "error_type" in result:
-                err_type = result["error_type"]
-                msg = result["message"]
-                
-                if err_type == "RATE_LIMIT":
-                    st.error(msg, icon="🚫")
-                    with st.sidebar:
-                        st.error("🚨 HẾT LIMIT! Đổi Model ngay tại đây ⬆️")
-                else:
-                    st.error(msg)
-            
+                st.error(result["message"])
             else:
                 col1, col2 = st.columns([2, 1])
-                
                 with col1:
-                    st.subheader("📝 Tóm tắt chuyên sâu")
+                    st.subheader("📝 Tóm tắt")
                     st.info(result.get("tom_tat", ""))
-                    
-                    st.subheader("💡 Chiến lược học")
-                    for gy in result.get("goi_y_hoc", []):
-                        st.markdown(f"- {gy}")
-
+                    st.subheader("💡 Gợi ý học")
+                    for gy in result.get("goi_y_hoc", []): st.markdown(f"- {gy}")
                 with col2:
                     st.subheader("🔑 Từ khóa")
-                    for kw in result.get("tu_khoa", []):
-                        st.button(f"🏷️ {kw}", use_container_width=True)
-
+                    for kw in result.get("tu_khoa", []): st.button(f"🏷️ {kw}", use_container_width=True)
+                
                 st.divider()
-                quiz_list = result.get("cau_hoi_quiz", [])
-                
-                st.subheader(f"❓ Ngân hàng câu hỏi ({len(quiz_list)} câu)")
-                if len(quiz_list) > 20:
-                    st.caption("🔥 AI đã tạo ra số lượng lớn câu hỏi để bao phủ toàn bộ kiến thức.")
-                
-                if not quiz_list:
-                    st.warning("Không tạo được câu hỏi nào.")
-                else:
-                    for idx, q in enumerate(quiz_list, 1):
-                        with st.expander(f"Câu {idx}: {q.get('cau_hoi')}"):
-                            st.markdown(f"**Đáp án:** {q.get('dap_an')}")
+                st.subheader("❓ Câu hỏi trắc nghiệm")
+                for idx, q in enumerate(result.get("cau_hoi_quiz", []), 1):
+                    with st.expander(f"Câu {idx}: {q.get('cau_hoi')}"):
+                        st.markdown(f"**Đáp án:** {q.get('dap_an')}")
 
 if __name__ == "__main__":
     main()
-
-
